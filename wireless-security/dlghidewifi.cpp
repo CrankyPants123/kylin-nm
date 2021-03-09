@@ -310,6 +310,7 @@ void DlgHideWifi::on_btnConnect_clicked()
             }
         } while(x);
 
+
         QTimer::singleShot(5*1000, this, SLOT(on_execSecConn() ));
     } else {
         bt->execConnWifi(wifiName);

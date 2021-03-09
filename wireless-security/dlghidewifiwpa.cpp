@@ -290,51 +290,41 @@ void DlgHideWifiWpa::on_btnConnect_clicked()
     mw->is_stop_check_net_state = 1;
     mw->is_connect_hide_wifi = 1;
 
-    QThread *t = new QThread();
-    connect(t, SIGNAL(finished()), t, SLOT(deleteLater()));
-    connect(t, SIGNAL(started()), this, SLOT(slotStartLoading()));
-    connect(this, SIGNAL(stopSignal()), t, SLOT(quit()));
-    t->start();
+    QProcess *conHideWpa = new QProcess();
+    connect(conHideWpa,&QProcess::started,this,&DlgHideWifiWpa::slotStartLoading);
+//    connect(conHideWpa,&QProcess::finished,[=](){
+//        qDebug()<<"进程执行完成";
+//    });
+    strWifiname = ui->leNetName->text();
+    strWifiPassword = ui->lePassword->text();
+    if(!isUsed){    //  新连接
+//        int n =20;
+//        while(n--){
+//            sleep(1);
+        QString conShell = "nmcli device wifi connect " + strWifiname
+                + " password " +strWifiPassword + " hidden yes";
+        qDebug()<<"shell = "<<conShell;
+        conHideWpa->startDetached(conShell.toLocal8Bit() + '\n');
+        conHideWpa->waitForFinished();
+        QString standardOutput =  QString::fromLocal8Bit(conHideWpa->readAllStandardOutput());
+        qDebug()<<standardOutput;
+        QString standardError = QString::fromLocal8Bit(conHideWpa->readAllStandardError());
+        qDebug()<<standardError;
 
-    QString wifiName = ui->leNetName->text();
-    QString wifiPassword = ui->lePassword->text();
-
-    strWifiname = wifiName;
-    strWifiPassword = wifiPassword;
-    if (isUsed == 0) {
-        QFuture < void > future1 =  QtConcurrent::run([=](){
-            int x(1), n(0);
-            do {
-                sleep(1);
-                n += 1;
-                if (n >= 20) {
-                    x = 0;
-                    mw->is_connect_hide_wifi = 0;
-                }
-
-                QString tmpPath = "/tmp/kylin-nm-btoutput-" + QDir::home().dirName();
-                QString cmd = "nmcli device wifi connect " + wifiName + " password " + wifiPassword + " hidden yes > " + tmpPath;
-
-                int status = system(cmd.toUtf8().data());
-                if (status != 0) {
-                    syslog(LOG_ERR, "execute 'nmcli device wifi connect' in function 'on_btnConnect_clicked' failed");
-                }
-
-                QFile file(tmpPath);
-                if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-                    qDebug()<<"Can't open the file!"<<endl;
-                }
-                QString text = file.readAll();
-                file.close();
-                if(text.indexOf("Scanning not allowed") != -1 || text.isEmpty()){x = 1;} else { x = 0;}
-            } while (x == 1);
-
-            emit this->stopSignal();
-            emit reSetWifiList();
-            //mw->stopLoading();
-            //QTimer::singleShot(8*1000, this, SLOT(on_execSecConn() ));
-        });
-    } else {
+        conHideWpa->kill();
+//        if(standardError.isEmpty()) break;
+        if(!standardOutput.isEmpty()){
+            QString txt(tr("Conn Wifi Success"));
+            mw->objKyDBus->showDesktopNotify(txt);
+            mw->on_btnWifiList_clicked();
+        }else{
+            QString txt(tr("Confirm your Wi-Fi password or usable of wireless card"));
+            mw->objKyDBus->showDesktopNotify(txt);
+            mw->on_btnWifiList_clicked();
+        }
+        emit this->stopSignal();
+        emit reSetWifiList();
+    }else {
         shellProcess = new QProcess(this);
         shellProcess->start("nmcli -f ssid device wifi");
         connect(shellProcess, &QProcess::readyRead, [ = ]() {
@@ -345,6 +335,53 @@ void DlgHideWifiWpa::on_btnConnect_clicked()
     }
     this->close();
 }
+
+//    QThread *t = new QThread();
+//    connect(t, SIGNAL(finished()), t, SLOT(deleteLater()));
+//    connect(t, SIGNAL(started()), this, SLOT(slotStartLoading()));
+//    connect(this, SIGNAL(stopSignal()), t, SLOT(quit()));
+//    t->start();
+
+//    QString wifiName = ui->leNetName->text();
+//    QString wifiPassword = ui->lePassword->text();
+
+//    strWifiname = wifiName;
+//    strWifiPassword = wifiPassword;
+//    if (isUsed == 0) {
+//        QFuture < void > future1 =  QtConcurrent::run([=](){
+//            int x(1), n(0);
+//            do {
+//                sleep(1);
+//                n += 1;
+//                if (n >= 20) {
+//                    x = 0;
+//                    mw->is_connect_hide_wifi = 0;
+//                }
+
+//                QString tmpPath = "/tmp/kylin-nm-btoutput-" + QDir::home().dirName();
+//                QString cmd = "nmcli device wifi connect " + wifiName + " password " + wifiPassword + " hidden yes > " + tmpPath + " 2>&1";
+
+//                int status = system(cmd.toUtf8().data());
+//                if (status != 0) {
+//                    syslog(LOG_ERR, "execute 'nmcli device wifi connect' in function 'on_btnConnect_clicked' failed");
+//                }
+
+//                QFile file(tmpPath);
+//                if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+//                    qDebug()<<"Can't open the file!"<<endl;
+//                }
+//                QString text = file.readAll();
+//                file.close();
+//                if(text.indexOf("Scanning not allowed") != -1 || text.isEmpty()){x = 1;} else { x = 0;}
+//            } while (x == 1);
+
+//            emit this->stopSignal();
+//            emit reSetWifiList();
+//            //mw->stopLoading();
+//            //QTimer::singleShot(8*1000, this, SLOT(on_execSecConn() ));
+//        });
+//    }
+
 
 void DlgHideWifiWpa::finishedProcess(int state) {
     if (! state) syslog(LOG_ERR, "Scan wifi list failed in functin on_btnConnect_clicked() in dlghidewifiwpa.cpp 359.");
